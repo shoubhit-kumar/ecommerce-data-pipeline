@@ -6,7 +6,7 @@ import os
 import json
 
 # Set up authentication
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcp-key.json'  # Local testing
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\ShoubhitKumar\OneDrive - IBM\Desktop\de-learn\ecommerce-data-pipeline\gcp-key.json"
 
 def generate_ecommerce_data(days=30):
     """Generate realistic e-commerce data for the last 30 days"""
