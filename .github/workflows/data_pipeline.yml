@@ -13,8 +13,8 @@ on:
         type: string
 
 env:
-  BUCKET_NAME: your-ecommerce-pipeline-bucket  # Update this
-  PROJECT_ID: your-project-id                   # Update this
+  BUCKET_NAME: ecommerce-pipeline-bucket-471107  # Update this
+  PROJECT_ID: ecommerce-pipeline-471107             # Update this
   DATASET_ID: ecommerce_analytics
 
 jobs:
