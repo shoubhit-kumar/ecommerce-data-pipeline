@@ -5,8 +5,13 @@ from datetime import datetime, timedelta
 import os
 import io
 
-# Set up authentication
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\ShoubhitKumar\OneDrive - IBM\Desktop\de-learn\ecommerce-data-pipeline\gcp-key.json"
+# Set up authentication - handle both local and GitHub Actions environments
+if 'GITHUB_ACTIONS' in os.environ:
+    # In GitHub Actions, authentication is handled by the auth action
+    pass
+else:
+    # For local development only
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\ShoubhitKumar\OneDrive - IBM\Desktop\de-learn\ecommerce-data-pipeline\gcp-key.json"
 
 def download_from_gcs(bucket_name):
     """Download CSV files from Google Cloud Storage"""
@@ -18,11 +23,15 @@ def download_from_gcs(bucket_name):
     # Download each file
     data_files = {}
     for filename in ['products.csv', 'customers.csv', 'orders.csv']:
-        blob = bucket.blob(f'raw_data/{filename}')
-        csv_data = blob.download_as_text()
-        df = pd.read_csv(io.StringIO(csv_data))
-        data_files[filename.replace('.csv', '')] = df
-        print(f"✅ Downloaded {filename}: {len(df):,} records")
+        try:
+            blob = bucket.blob(f'raw_data/{filename}')
+            csv_data = blob.download_as_text()
+            df = pd.read_csv(io.StringIO(csv_data))
+            data_files[filename.replace('.csv', '')] = df
+            print(f"✅ Downloaded {filename}: {len(df):,} records")
+        except Exception as e:
+            print(f"❌ Failed to download {filename}: {str(e)}")
+            raise
     
     return data_files
 
@@ -223,14 +232,20 @@ def load_to_bigquery(data_dict, project_id, dataset_id):
     return success_count
 
 def main():
-    """Main transformation pipeline"""
+    """Main transformation pipeline with environment variable support"""
     print("🚀 Starting E-commerce Data Pipeline - Transform Phase")
     print(f"📅 Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Configuration - UPDATE THESE VALUES
-    bucket_name = 'ecommerce-pipeline-bucket-471107'  # Replace with your bucket
-    project_id = 'ecommerce-pipeline-471107'  # Replace with your project ID
-    dataset_id = 'ecommerce_analytics'
+    # Configuration from environment variables
+    bucket_name = os.getenv('BUCKET_NAME', 'ecommerce-pipeline-bucket-471107')
+    project_id = os.getenv('PROJECT_ID', 'ecommerce-pipeline-471107')
+    dataset_id = os.getenv('DATASET_ID', 'ecommerce_analytics')
+    
+    print(f"🔧 Configuration:")
+    print(f"  Bucket: {bucket_name}")
+    print(f"  Project: {project_id}")
+    print(f"  Dataset: {dataset_id}")
+    print(f"  Environment: {'GitHub Actions' if 'GITHUB_ACTIONS' in os.environ else 'Local Development'}")
     
     try:
         # Step 1: Download raw data
@@ -287,11 +302,22 @@ def main():
             print(f"\n✅ Transform phase completed successfully!")
             print(f"📊 Created {len(transformed_tables)} analytical tables in BigQuery")
             print(f"🎯 Ready for Fabric dashboard creation!")
+            
+            # Set outputs for GitHub Actions
+            if 'GITHUB_ACTIONS' in os.environ and 'GITHUB_OUTPUT' in os.environ:
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write(f"tables_created={len(transformed_tables)}\n")
+                    f.write(f"total_revenue={total_revenue:.2f}\n")
+                    f.write(f"profit_margin={avg_profit_margin:.1f}\n")
         else:
             print(f"\n⚠️ Transform phase completed with {len(transformed_tables)-success_count} errors")
+            if 'GITHUB_ACTIONS' in os.environ:
+                exit(1)
             
     except Exception as e:
         print(f"\n❌ Transform phase failed: {str(e)}")
+        if 'GITHUB_ACTIONS' in os.environ:
+            exit(1)
         raise
 
 if __name__ == "__main__":
