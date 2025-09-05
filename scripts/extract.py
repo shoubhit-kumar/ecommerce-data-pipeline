@@ -5,8 +5,13 @@ from google.cloud import storage
 import os
 import json
 
-# Set up authentication
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\ShoubhitKumar\OneDrive - IBM\Desktop\de-learn\ecommerce-data-pipeline\gcp-key.json"
+# Set up authentication - use environment variables in production
+if 'GITHUB_ACTIONS' in os.environ:
+    # In GitHub Actions, authentication is handled by the auth action
+    pass
+else:
+    # For local development
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r"C:\Users\ShoubhitKumar\OneDrive - IBM\Desktop\de-learn\ecommerce-data-pipeline\gcp-key.json"
 
 def generate_ecommerce_data(days=30):
     """Generate realistic e-commerce data for the last 30 days"""
@@ -85,7 +90,7 @@ def generate_ecommerce_data(days=30):
                     'unit_price': unit_price,
                     'item_total': round(item_total, 2),
                     'status': np.random.choice(['completed', 'pending', 'cancelled'], 
-                                            p=[0.85, 0.1, 0.05]),
+                                             p=[0.85, 0.1, 0.05]),
                     'payment_method': np.random.choice(['Credit Card', 'Debit Card', 'UPI', 'COD'], 
                                                      p=[0.4, 0.3, 0.25, 0.05]),
                     'discount_amount': round(np.random.uniform(0, item_total * 0.2), 2)
@@ -112,16 +117,22 @@ def upload_to_gcs(df, bucket_name, file_name):
         return False
 
 def main():
-    """Main execution function"""
+    """Main execution function with environment variable support"""
     print("🚀 Starting E-commerce Data Pipeline - Extract Phase")
     print(f"📅 Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Configuration
-    bucket_name = 'ecommerce-pipeline-bucket-471107'
-
+    # Get configuration from environment variables (for GitHub Actions) or use defaults
+    bucket_name = os.getenv('BUCKET_NAME', 'ecommerce-pipeline-bucket-471107')
+    days_of_data = int(os.getenv('DAYS_OF_DATA', '30'))
+    
+    print(f"🔧 Configuration:")
+    print(f"  Bucket: {bucket_name}")
+    print(f"  Days of data: {days_of_data}")
+    print(f"  Environment: {'GitHub Actions' if 'GITHUB_ACTIONS' in os.environ else 'Local Development'}")
+    
     try:
         # Generate data
-        products_df, customers_df, orders_df = generate_ecommerce_data(30)
+        products_df, customers_df, orders_df = generate_ecommerce_data(days_of_data)
         
         # Display summary
         print("\n📊 Data Summary:")
@@ -141,11 +152,23 @@ def main():
         if success_count == 3:
             print("\n✅ Extract phase completed successfully!")
             print("Ready for transformation phase.")
+            
+            # Set outputs for GitHub Actions
+            if 'GITHUB_ACTIONS' in os.environ and 'GITHUB_OUTPUT' in os.environ:
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write(f"records_processed={len(orders_df)}\n")
+                    f.write(f"revenue_generated={orders_df['item_total'].sum():.2f}\n")
+                    f.write(f"unique_customers={orders_df['customer_id'].nunique()}\n")
+                    f.write(f"data_date_range={orders_df['order_date'].min()}_to_{orders_df['order_date'].max()}\n")
         else:
             print(f"\n⚠️ Extract phase completed with {3-success_count} errors.")
+            if 'GITHUB_ACTIONS' in os.environ:
+                exit(1)  # Fail the GitHub Action if uploads failed
             
     except Exception as e:
         print(f"\n❌ Extract phase failed: {str(e)}")
+        if 'GITHUB_ACTIONS' in os.environ:
+            exit(1)  # Fail the GitHub Action on any error
         raise
 
 if __name__ == "__main__":
