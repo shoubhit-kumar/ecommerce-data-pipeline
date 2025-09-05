@@ -1,9 +1,9 @@
 name: E-commerce Data Pipeline
 
 on:
-  schedule:
+  # schedule: #uncomment
     # Run daily at 2:00 AM UTC (7:30 AM IST)
-    - cron: '0 2 * * *'
+    # - cron: '0 2 * * *' #uncomment
   workflow_dispatch:  # Allow manual triggers
     inputs:
       days_of_data:
